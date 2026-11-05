@@ -1,0 +1,67 @@
+# tinyfactory operating flow — configuration
+# Companion to skills/factory-flow.md (the skill is the instruction; this file is the config).
+# Preview draft: defaults follow Vic's standing rules; five decisions from
+# review-v1-spec.md are still open (merge method, safeguards, Q1 split,
+# PR-only fixes, run location + dry-run).
+
+version: 1
+
+loop:
+  one_item_at_a_time: true
+  preview_first_cycle: true   # --preview: plan + checks + estimated cost, no changes
+
+stages:
+  intake:
+    gate: spec
+    requires:
+      - outcome
+      - constraints
+      - acceptance_criteria
+      - escalation_conditions
+    on_missing: send_back
+
+  plan:
+    steps: [specify, clarify, plan, tasks]
+    output: tasks.md
+    task_requires:
+      - acceptance_criteria
+      - verify_command
+
+  generate:
+    one_task_per: worktree
+    tdd: true   # failing behavior case first, then code
+    models:
+      plan: claude
+      generate: codex
+      # cheap tier for validate/test/verify: undecided (Haiku 5.5 proposed, awaiting Vic)
+
+  evaluate:
+    order: [validate-diff, run-tests, verify-behavior]
+    review: [machine, human]   # machine first; human only on what it can't settle
+    max_send_backs: 2
+
+  deploy:
+    via: pr
+    merge: merge-commit   # never squash by default; if disallowed, report blocked
+    on_red_main: fix-or-revert-and-stop
+    release_from: main
+
+  learn:
+    observer: true
+    log: events.jsonl
+
+caps:
+  cost_usd_per_run: null   # set before first real run
+  cost_usd_per_day: null   # set before first real run
+  merges_per_day: null     # set before first real run
+  stop_after_consecutive_failures: 2
+
+invariants:
+  protected_paths:
+    - .github/
+    - evals/
+    - pipeline file
+  never_direct_to_main: true   # revert step only, if at all
+  never_read_secrets:
+    - .env
+  never_edit_own_ci: true
